@@ -1,18 +1,30 @@
 ﻿@page "/fetchdata"
 
 @using src.Data
+
 @inject WeatherForecastService ForecastService
+@inject IDistributedCache cache
 
 <h1>Weather forecast</h1>
 
 <p>This component demonstrates fetching data from a service.</p>
 
-@if (forecasts == null)
+<button class="btn btn-primary" @onclick="LoadForecast">Load forecast</button>
+
+@if(forecasts is null && loadLocation == "")
+{
+    <p><em>Click the button to load the forecast</em></p>
+}
+else if (forecasts is null)
 {
     <p><em>Loading...</em></p>
 }
 else
 {
+    <div class="h3 @isCachedData">
+        @loadLocation
+    </div>
+
     <table class="table">
         <thead>
             <tr>
@@ -38,9 +50,30 @@ else
 
 @code {
     private WeatherForecast[] forecasts;
+    private string loadLocation = "";
+    private string isCachedData = "";
 
-    protected override async Task OnInitializedAsync()
+    private async Task LoadForecast()
     {
-        forecasts = await ForecastService.GetForecastAsync(DateTime.Now);
+        forecasts = null;
+        loadLocation = null;
+
+        string recordKey = "weatherForecast_" + DateTime.Now.ToString("yyyyMMdd_hhmm");
+
+        forecasts = await cache.GetRecordAsync<WeatherForecast[]>(recordKey);
+        
+        if (forecasts == null)
+        {
+            forecasts = await ForecastService.GetForecastAsync(DateTime.Now);
+            
+            loadLocation = $"Loaded from API at { DateTime.Now }";
+            isCachedData = "";
+            
+            await cache.SetRecordAsync<WeatherForecast[]>(recordKey, forecasts);
+        }
+        else {
+            loadLocation = $"Loaded from cache with key: { recordKey }";
+            isCachedData = "text-danger";
+        }
     }
 }
